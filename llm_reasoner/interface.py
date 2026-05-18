@@ -28,16 +28,44 @@ def _format_step(step: engine.Step) -> None:
 
     st.write(step.content)
     st.progress(step.confidence)
-    st.caption(f"Confidence: {step.confidence:.2f} | Thinking time: {step.thinking_time:.2f}s")
+    
+    usage_info = ""
+    if step.usage:
+        usage_info = f" | Tokens: {step.usage.get('total_tokens', 0)}"
+    if step.cost > 0:
+        usage_info += f" | Cost: ${step.cost:.6f}"
+        
+    st.caption(f"Confidence: {step.confidence:.2f} | Thinking time: {step.thinking_time:.2f}s{usage_info}")
 
 async def _stream_reasoning(chain: engine.ReasonChain, query: str) -> None:
     """Stream reasoning steps and update UI."""
     placeholder = st.empty()
+    total_tokens = 0
+    total_cost = 0.0
+    total_time = 0.0
+    steps = []
+
     with st.spinner("Generating reasoning chain..."):
         try:
             async for step in chain.generate_with_metadata(query):
+                steps.append(step)
+                if step.usage:
+                    total_tokens += step.usage.get('total_tokens', 0)
+                total_cost += step.cost
+                total_time += step.thinking_time
+                
                 with placeholder.container():
-                    _format_step(step)
+                    for s in steps:
+                        _format_step(s)
+            
+            # Show summary
+            st.divider()
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Steps", len(steps))
+            col2.metric("Total Tokens", total_tokens)
+            col3.metric("Total Cost", f"${total_cost:.4f}")
+            col4.metric("Total Time", f"{total_time:.2f}s")
+            
         except Exception as e:
             st.error(f"Error during reasoning: {str(e)}")
 

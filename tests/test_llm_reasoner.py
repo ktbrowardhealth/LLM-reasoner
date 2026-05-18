@@ -1,6 +1,7 @@
 """Comprehensive tests for LLM-Reasoner."""
 import pytest
 import asyncio
+import json
 from llm_reasoner import ReasonChain
 from llm_reasoner.engine import ReasoningError, Step
 from llm_reasoner.models import model_registry
@@ -19,13 +20,22 @@ def test_model_registry():
 
 def test_step_creation():
     """Test step creation from response."""
+    response_data = {
+        "choices": [{
+            "message": {
+                "content": json.dumps({
+                    "title": "Test Step",
+                    "content": "Test content",
+                    "confidence": 0.8
+                })
+            }
+        }],
+        "usage": {"total_tokens": 10},
+        "cost": 0.001
+    }
     step = Step.from_response(
         number=1,
-        response={
-            "title": "Test Step",
-            "content": "Test content",
-            "confidence": 0.8
-        },
+        response_data=response_data,
         thinking_time=1.0
     )
     assert step.number == 1
@@ -33,6 +43,8 @@ def test_step_creation():
     assert step.content == "Test content"
     assert step.confidence == 0.8
     assert step.thinking_time == 1.0
+    assert step.usage["total_tokens"] == 10
+    assert step.cost == 0.001
 
 @pytest.mark.asyncio
 async def test_basic_generation():

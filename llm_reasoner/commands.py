@@ -89,11 +89,22 @@ def reason(query: str, model: Optional[str], max_tokens: int, temperature: float
                 min_steps=min_steps
             )
 
+            total_tokens = 0
+            total_cost = 0.0
+            total_time = 0.0
+            last_step_number = 0
+
             with Progress() as progress:
                 task = progress.add_task("[cyan]Thinking...", total=1.0)
 
                 async for step in chain.generate_with_metadata(query):
                     progress.update(task, completed=min(step.number / 20, 1.0))
+                    
+                    if step.usage:
+                        total_tokens += step.usage.get('total_tokens', 0)
+                    total_cost += step.cost
+                    total_time += step.thinking_time
+                    last_step_number = step.number
 
                     if step.is_final:
                         console.print("\n[bold green]Final Answer:[/bold green]")
@@ -104,9 +115,23 @@ def reason(query: str, model: Optional[str], max_tokens: int, temperature: float
                         console.print(step.content)
                         console.print(f"Confidence: {step.confidence:.2f}")
                         console.print(f"Thinking time: {step.thinking_time:.2f}s")
+                    
+                    if step.cost > 0:
+                        console.print(f"[dim]Step Cost: ${step.cost:.6f}[/dim]")
 
                     if debug:
                         console.print(f"[dim]Message count: {len(chain.chat_history)}[/dim]")
+
+            # Print Summary
+            console.print("\n")
+            summary_table = Table(title="Reasoning Chain Summary")
+            summary_table.add_column("Metric", style="cyan")
+            summary_table.add_column("Value", style="magenta")
+            summary_table.add_row("Total Steps", str(last_step_number))
+            summary_table.add_row("Total Tokens", str(total_tokens))
+            summary_table.add_row("Total Cost", f"${total_cost:.6f}")
+            summary_table.add_row("Total Time", f"{total_time:.2f}s")
+            console.print(summary_table)
 
             return 0
 
